@@ -8,13 +8,11 @@ python -m venv venv
 </pre>
 
 2. Activate it:
-Linux
 <pre>
+#Linux
 source venv/bin/activate
-</pre>
 
-Windows
-<pre>
+#Windows
 .\venv\Scripts\activate
 </pre>
 
