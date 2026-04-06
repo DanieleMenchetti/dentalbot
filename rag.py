@@ -14,7 +14,6 @@ DOCUMENTS_PDF_DIR = "./assets"
 
 
 def build_vectorstore(folder_path: str, persist_dir: str = VECTORSTORE_DB):
-    # 1. Carica tutti i PDF
     docs = []
 
     for file in os.listdir(folder_path):
@@ -23,17 +22,14 @@ def build_vectorstore(folder_path: str, persist_dir: str = VECTORSTORE_DB):
             loader = PyPDFLoader(file_path)
             docs.extend(loader.load())
 
-    # 2. Split
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=200
     )
     docs_chunks = splitter.split_documents(docs)
 
-    # 3. Embeddings
     embeddings = OllamaEmbeddings(model=EMBEDDING_NN)
 
-    # 4. Vector DB
     vectorstore = Chroma.from_documents(
         docs_chunks,
         embeddings,
