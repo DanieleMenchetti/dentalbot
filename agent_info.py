@@ -10,7 +10,7 @@ from langchain.tools import tool
 VECTORSTORE_DB = "./vectorstore"
 EMBEDDING_NN = "mxbai-embed-large"
 LLM = "qwen2.5"
-DOCUMENTS_PDF_DIR = "./assets"
+DOCUMENTS_PDF_DIR = "./documents"
 
 
 def build_vectorstore(folder_path: str, persist_dir: str = VECTORSTORE_DB):
@@ -68,7 +68,7 @@ def main():
     )
 
     while True:
-        user_input = input("\n👤 User: ")
+        user_input = input("\nUser: ")
 
         if user_input.lower() in ["exit", "quit"]:
             break
@@ -77,7 +77,7 @@ def main():
             "messages": [{"role": "user", "content": user_input}]
         })
 
-        print("\n🤖 Dentalbot:", response["messages"][-1].content)
+        print("\nDentalbot:", response["messages"][-1].content)
 
 
 if __name__ == "__main__":
