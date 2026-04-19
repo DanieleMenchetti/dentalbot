@@ -2,3 +2,4 @@
 vectorstore
 config/*
 !config/.keychain.example
+conversations/*
