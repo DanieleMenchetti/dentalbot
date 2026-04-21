@@ -168,7 +168,7 @@ async def main():
         
         # Initialize state with full conversation history + current message
         state = {
-            "messages": conversation_memory.get_messages_for_agent() + [user_input],
+            "messages": conversation_memory.get_messages_for_agent(),
             "agent_calls": {},
             "agent_responses": {},
             "error": ""
