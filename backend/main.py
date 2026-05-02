@@ -1,14 +1,37 @@
 import asyncio
-from typing import TypedDict, Literal
-from langchain_core.prompts import string
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+from typing import List, Dict, TypedDict, Literal
 from langgraph.graph import StateGraph, END
 from src.agents.agent_orchestrator import AgentOrchestrator
 from src.agents.agent_summarize import AgentSummarize
 from src.agents.agent_fallback import AgentFallback
 from src.agents.specialized.agent_info import AgentInfo
 from src.agents.specialized.agent_appointments import AgentAppointments
-from src.memory.conversation_memory import ConversationMemory
 
+# FastAPI app
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# Models
+class CreateConversationRequest(BaseModel):
+    name: str
+
+class AddMessageRequest(BaseModel):
+    name: str
+    message: str
+
+class Conversation(BaseModel):
+    name: str
+    messages: List[str]
 
 class WorkflowState(TypedDict):
     messages: list
@@ -16,24 +39,19 @@ class WorkflowState(TypedDict):
     agent_responses: dict
     error: str
 
-info_agent = AgentInfo()
-appointments_agent = AgentAppointments()
-all_specialized_agent = [info_agent, appointments_agent]
-
-orchestrator = AgentOrchestrator(all_specialized_agent)
-summarizer = AgentSummarize()
-fallback = AgentFallback()
-conversation_memory = ConversationMemory()
 
 
+# Functions
 async def call_orchestrator_agent(state: WorkflowState):
     decisions = await orchestrator.run(state["messages"])
+    print("Orchestrator - Decisions:", decisions)
     return {
         "agent_calls": decisions
     }
     
 async def call_fallback_agent(state: WorkflowState):
     response = await fallback.run(state["messages"])
+    print("Fallback - Response:", response)
     return {
         "messages": state["messages"] + [response],
         "agent_responses": {
@@ -45,18 +63,22 @@ async def call_specialized_agents(state: WorkflowState):
     """Execute all agents that should be executed in parallel."""
     agent_calls = state.get("agent_calls", {})
     messages = state.get("messages", [])
+    print("Specialized Agents - Agent Calls:", agent_calls)
+    
 
     # Execute agents in parallel
     try:
         tasks = []
         for agent in all_specialized_agent:
             if agent.name in agent_calls and isinstance(agent_calls[agent.name], str) and agent_calls[agent.name]:
+                print("Specialized Agents - Running agent:", agent.name)
                 task = agent.run([agent_calls[agent.name]])
                 tasks.append((agent.name, task))
 
         # Gather results
         results = await asyncio.gather(*[task for _, task in tasks])
     except Exception as e:
+        print("Specialized Agents - Error executing agents:", e)
         return {
             "error": f"Error executing agents: {e}"
         }
@@ -65,6 +87,8 @@ async def call_specialized_agents(state: WorkflowState):
     agent_responses = {}
     for (agent_name, _), response in zip(tasks, results):
         agent_responses[agent_name] = response
+
+    print("Specialized Agents - Agent Responses:", agent_responses)
 
     if check_summarize(agent_responses):
         return {
@@ -95,6 +119,7 @@ def check_fallback_node(state: WorkflowState) -> bool:
 
 async def call_summarize_agent(state: WorkflowState):
     summarize = await summarizer.run(state["agent_responses"])
+    print("Summarize - Response:", summarize)
     return {
         "messages": state["messages"] + [summarize]
     }
@@ -108,7 +133,23 @@ async def handle_error(state: WorkflowState):
         }
     }
 
-async def main():   
+
+
+
+# Data structures
+info_agent = AgentInfo()
+appointments_agent = AgentAppointments()
+all_specialized_agent = [info_agent, appointments_agent]
+
+orchestrator = AgentOrchestrator(all_specialized_agent)
+summarizer = AgentSummarize()
+fallback = AgentFallback()
+conversations = {}
+
+
+# App startup
+@app.on_event("startup")
+async def startup_event():
     await info_agent.initialize()
     await appointments_agent.initialize()
     await orchestrator.initialize()
@@ -150,44 +191,46 @@ async def main():
     workflow.add_edge("handle_error", END)
     
     # Compile the graph
-    app = workflow.compile()
+    global app_workflow
+    app_workflow = workflow.compile()
 
-    # Print the graph structure
-    print(app.get_graph().print_ascii())
-
-    print("Dentalbot - Type your questions or 'exit' to quit\n")
-    
-    while True:
-        user_input = input("\nUser: ")
-        
-        if user_input.lower() in ["exit", "quit"]:
-            break
-        
-        # Add user message to conversation memory
-        conversation_memory.add_message("human", user_input)
-        
-        # Initialize state with full conversation history + current message
-        state = {
-            "messages": conversation_memory.get_messages_for_agent(),
-            "agent_calls": {},
-            "agent_responses": {},
-            "error": ""
-        }
-        
-        # Run the workflow
-        result = await app.ainvoke(state)
-
-        print("########## Result:", result)
-        
-        # Get the final response
-        final_response = result.get("messages", [])[-1] if result.get("messages") else "No response"
-        
-        # Add AI response to conversation memory
-        conversation_memory.add_message("assistant", final_response)
-        
-        # Print the summary
-        print(f"\nDentalbot: {final_response}\n")
+    print("Initialization completed!")
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# API endpoints
+@app.get("/conversations")
+def get_conversations():
+    return {"conversations": list(conversations.keys())}
+
+@app.post("/conversations")
+def create_conversation(req: CreateConversationRequest):
+    if req.name in conversations:
+        raise HTTPException(status_code=400, detail="Conversation with this name already exists")
+    conversations[req.name] = []
+    return {"name": req.name}
+
+@app.get("/conversations/{name}")
+def get_conversation_messages(name: str):
+    if name not in conversations:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"name": name, "messages": conversations[name]}
+
+@app.post("/conversations/messages")
+async def add_message_to_conversation(req: AddMessageRequest):
+    if req.name not in conversations:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    # Add user message
+    conversations[req.name].append(req.message)
+
+    state = {
+        "messages": conversations[req.name],
+        "agent_calls": {},
+        "agent_responses": {},
+        "error": ""
+    }
+
+    reply = await app_workflow.ainvoke(state)
+    final_response = reply.get("messages", [])[-1] if reply.get("messages") else "No response"
+    conversations[req.name].append(final_response)
+
+    return {"name": req.name, "reply": final_response}

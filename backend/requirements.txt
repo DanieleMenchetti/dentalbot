@@ -17,6 +17,7 @@ cryptography==46.0.7
 dataclasses-json==0.6.7
 distro==1.9.0
 durationpy==0.10
+fastapi==0.136.0
 filelock==3.25.2
 filetype==1.2.0
 flatbuffers==25.12.19
@@ -25,6 +26,7 @@ fsspec==2026.2.0
 google-auth==2.49.2
 google-genai==1.73.0
 googleapis-common-protos==1.73.0
+grandalf==0.8
 greenlet==3.3.2
 grpcio==1.78.0
 h11==0.16.0
@@ -89,6 +91,7 @@ pydantic-settings==2.13.1
 pydantic_core==2.41.5
 Pygments==2.19.2
 PyJWT==2.12.1
+pyparsing==3.3.2
 pypdf==6.9.1
 PyPika==0.51.1
 pyproject_hooks==1.2.0
