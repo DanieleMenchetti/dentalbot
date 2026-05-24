@@ -9,6 +9,7 @@ from src.agents.agent_summarize import AgentSummarize
 from src.agents.agent_fallback import AgentFallback
 from src.agents.specialized.agent_info import AgentInfo
 from src.agents.specialized.agent_appointments import AgentAppointments
+from src.agents.specialized.agent_emergency import AgentEmergency
 
 # FastAPI app
 app = FastAPI()
@@ -139,7 +140,8 @@ async def handle_error(state: WorkflowState):
 # Data structures
 info_agent = AgentInfo()
 appointments_agent = AgentAppointments()
-all_specialized_agent = [info_agent, appointments_agent]
+emergency_agent = AgentEmergency()
+all_specialized_agent = [info_agent, appointments_agent, emergency_agent]
 
 orchestrator = AgentOrchestrator(all_specialized_agent)
 summarizer = AgentSummarize()
@@ -152,6 +154,7 @@ conversations = {}
 async def startup_event():
     await info_agent.initialize()
     await appointments_agent.initialize()
+    await emergency_agent.initialize()
     await orchestrator.initialize()
     await summarizer.initialize()
     await fallback.initialize()
